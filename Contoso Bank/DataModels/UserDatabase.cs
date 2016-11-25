@@ -25,8 +25,6 @@ namespace Contoso_Bank.DataModels
 
         [JsonProperty(PropertyName = "AUD")]
         public double AUD { get; set; }
-
-        [JsonProperty(PropertyName = "updatedAt")]
-        public string updatedAt { get; set; }
+        
     }
 }

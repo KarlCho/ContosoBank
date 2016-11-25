@@ -28,21 +28,21 @@ namespace Contoso_Bank
                 BotData userData = await stateClient.BotState.GetUserDataAsync(activity.ChannelId, activity.From.Id);
 
                 var userMessage = activity.Text;
-                string endOutput = "Hello and welcome to Contoso Bot if you want to see what I can do please type help, for a list of commands. type commands";
+                string endOutput = "Hello and welcome to Contoso Bot please type 'user (username)' to log in, if you want to see what I can do please type help or for a list of commands. type commands";
 
 
 
                 // calculate something for us to return
                 if (userData.GetProperty<bool>("SentGreeting"))
                 {
-                    endOutput = "Hello again if you want to log in please type 'user (name)'";
+                    endOutput = "Hello again for a list of commands type 'commands' for a list of what I can do type 'help'";
                 }
                 else
                 {   
                     userData.SetProperty<bool>("SentGreeting", true);
                     await stateClient.BotState.SetUserDataAsync(activity.ChannelId, activity.From.Id, userData);
                 }
-                bool isRequest = true;
+                bool isRequest = false;
 
                 if (userMessage.Length > 6)
                 {
@@ -51,7 +51,7 @@ namespace Contoso_Bank
                         string username = userMessage.Substring(5);
                         userData.SetProperty<string>("username", username);
                         await stateClient.BotState.SetUserDataAsync(activity.ChannelId, activity.From.Id, userData);
-                        endOutput = "Hello " + username;
+                        endOutput = "Hello " + username + " what would you like me to do today?";
                         isRequest = false;
                     }
                 }
@@ -73,7 +73,7 @@ namespace Contoso_Bank
 
                 if (userMessage.ToLower().Contains("commands"))
                 {
-                    endOutput = "foreign exchange example: 'nzd usd', \n\n register or log into a username: 'user (username)' \n\n get your current balance: 'get my balance' \n\n clear data 'clear'";
+                    endOutput = "foreign exchange example: 'nzd usd', \n\n register or log into a username: 'user (username)' \n\n get your current balance: 'get my balance' \n\n clear data 'clear' \n\n create an account: create new account";
                     await stateClient.BotState.DeleteStateForUserAsync(activity.ChannelId, activity.From.Id);
                     isRequest = false;
                 }
@@ -90,9 +90,8 @@ namespace Contoso_Bank
                         }
                     }
                     isRequest = false;
-
                 }
-                if (userMessage.ToLower().Equals("create new account"))
+                    if (userMessage.ToLower().Equals("create new account"))
                 {
                     UserDatabase userDatabase = new UserDatabase()
                     {
@@ -104,60 +103,92 @@ namespace Contoso_Bank
                     await AzureManager.AzureManagerInstance.AddUserDatabase(userDatabase);
                     endOutput = "";
                     endOutput += "Congratulations your account has been saved to our database";
+                    isRequest = false;
                 }
-
-                //if (userMessage.ToLower().Equals("Update my account"))
-                //{
-                //    List<UserDatabase> userDatabase = await AzureManager.AzureManagerInstance.GetUserDatabase();
-                //    foreach (UserDatabase t in userDatabase)
-                //    {
-                //        if (userData.GetProperty<string>("username").ToLower() == t.Name.ToLower())
-                //        {
-                //            UserDatabase userDatabase = await
-
-                //        }
-                //    }
-                //}
-
+                
                 if (userMessage.ToLower().Equals("delete my account"))
                 {
-                    UserDatabase toBeDeleted = new UserDatabase();
-                    toBeDeleted.ID = "90ac02e9-f9f1-4830-95e2-15714e843be9";
+                    List<UserDatabase> userDatabase = await AzureManager.AzureManagerInstance.GetUserDatabase();
+                    foreach (UserDatabase t in userDatabase)
+                    {
+                        if (userData.GetProperty<string>("username").ToLower() == t.Name.ToLower())
+                        {
+                            await AzureManager.AzureManagerInstance.DeleteUserDatabase(t);
 
-                    await AzureManager.AzureManagerInstance.DeleteUserDatabase(toBeDeleted);
-                    endOutput = "";
-                    endOutput += "Congratulations your account has been deleted from our database";
+                        }
+
+                        endOutput = "";
+                        endOutput += "Congratulations your account has been deleted from our database";
+                    }
                 }
 
+                if (userMessage.ToLower().Equals("contoso bot"))
+                {
+                    Activity replyToConversation = activity.CreateReply("More information about Contoso Bot");
+                    replyToConversation.Recipient = activity.From;
+                    replyToConversation.Type = "message";
+                    replyToConversation.Attachments = new List<Attachment>();
+                    List<CardImage> cardImages = new List<CardImage>();
+                    cardImages.Add(new CardImage(url: "http://www.gmkfreelogos.com/logos/C/img/CB.gif"));
+                    List<CardAction> cardButtons = new List<CardAction>();
+                    CardAction plButton = new CardAction()
+                    {
+                        Value = "https://www.facebook.com/schocontosobank/",
+                        Type = "openUrl",
+                        Title = "Contoso Facebook"
+                    };
+                    cardButtons.Add(plButton);
+                    ThumbnailCard plCard = new ThumbnailCard()
+                    {
+                        Title = "Visit Contoso Bot's Facebook",
+                        Subtitle = "The Contoso Bot's here",
+                        Images = cardImages,
+                        Buttons = cardButtons
+                    };
+                    Attachment plAttachment = plCard.ToAttachment();
+                    replyToConversation.Attachments.Add(plAttachment);
+                    await connector.Conversations.SendToConversationAsync(replyToConversation);
 
+                    return Request.CreateResponse(HttpStatusCode.OK);
+
+                }
+                if (userMessage.Length == 3)
+                {
+                    isRequest = true;
+                }
                 // return our reply to the user
-                Activity infoReply = activity.CreateReply(endOutput);
+                if (!isRequest){
+                    Activity infoReply = activity.CreateReply(endOutput);
 
                     await connector.Conversations.ReplyToActivityAsync(infoReply);
-                
-                //else
-                //{
-                //    ForexObjects.RootObject rootObject;
+                }
+                else
+                {
 
-                //    HttpClient client = new HttpClient();
-                //    string x = await client.GetStringAsync(new Uri("http://api.fixer.io/latest?base=" + activity.Text ));
+                    ForexObjects.RootObject rootObject;
 
-                //    rootObject = JsonConvert.DeserializeObject<ForexObjects.RootObject>(x);
-                //    string baseName = rootObject.@base;
-                //    double rates = rootObject.rates.NZD;
+                    HttpClient client = new HttpClient();
+                    string x = await client.GetStringAsync(new Uri("http://api.fixer.io/latest?base=" + activity.Text));
+                    //var json = JObject.Parse(x);
+                    // var rates = parse.(json["rates"].
 
-                //    Activity reply = activity.CreateReply($"Current value of {baseName} in NZD is ");
-                //    await connector.Conversations.ReplyToActivityAsync(reply);
+                    rootObject = JsonConvert.DeserializeObject<ForexObjects.RootObject>(x);
+                    string baseName = rootObject.@base;
+                    double rates = rootObject.rates.NZD;
+                    string date = rootObject.date;
 
-                //    Activity ForexReply = activity.CreateReply("hiya");
-                //    ForexReply.Recipient = activity.From;
-                //    ForexReply.Type = "message";
-                //    ForexReply.Attachments = new List<Attachment>();
+                    Activity reply = activity.CreateReply($"Current value of {baseName} in NZD is " + rates);
+                    await connector.Conversations.ReplyToActivityAsync(reply);
 
-                //    List<CardImage> cardImages = new List<CardImage>();
-                //    cardImages.Add(new CardImage(url: "http://4vector.com/i/free-vector-cb_059449_cb.png"));
-                //}
-                
+                    Activity ForexReply = activity.CreateReply("hiya");
+                    ForexReply.Recipient = activity.From;
+                    ForexReply.Type = "message";
+                    ForexReply.Attachments = new List<Attachment>();
+
+                    List<CardImage> cardImages = new List<CardImage>();
+                    cardImages.Add(new CardImage(url: "http://4vector.com/i/free-vector-cb_059449_cb.png"));
+                }
+
             }
             else
             {
